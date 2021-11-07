@@ -1,28 +1,44 @@
-import numpy as np
-import pendulum
-
-from orbit import load_asteroids, get_adalia_day_at_time, euclidian, calc_position
+from orbit import load_asteroids, calc_position
+from utils import build_timestamps, process_dataframe
 
 if __name__ == '__main__':
     # Init df
     print(f"Initializing data...")
     asteroids_df = load_asteroids('asteroids_20210917.json')
-    selection = int(input("Select asteroid ID to query against: "))
+
+    # User input
+    selection = None
+    while not selection:
+        input_val = input("Select asteroid ID to query, default=104: ")
+        try:
+            if not input_val:
+                selection = 104
+            else:
+                selection = int(input_val)
+        except ValueError:
+            print(f"{input_val} is not a valid number, please enter an asteroid ID.")
     print(f"You selected {selection}, continuing...")
+
+    year_amount = None
+    while not year_amount:
+        input_val = input("Select amount of years to calculate for, default=5 "
+                          "(*warning, the more years the longer the calculation takes!): ")
+        try:
+            if not input_val:
+                year_amount = 5
+            else:
+                year_amount = int(input_val)
+        except ValueError:
+            print(f"{input_val} is not a valid number, please enter an asteroid ID.")
+    print(f"You selected {year_amount} years, continuing...")
+
+    # Filter out selected asteroid
     homebase = asteroids_df.loc[selection]
     asteroids_df = asteroids_df.drop(selection)
 
     # Get a range of adalia days for the period of a year
     print(f"Building timestamps...")
-    current_timestamp = pendulum.now()
-    timestamps = []
-    adalia_day_interval = []
-
-    for i in range(365 * 5):
-        current_timestamp = current_timestamp.add(days=1)
-        timestamps.append(current_timestamp.to_datetime_string())
-        adalia_day = get_adalia_day_at_time(current_timestamp.to_datetime_string())
-        adalia_day_interval.append(adalia_day)
+    timestamps, adalia_day_interval = build_timestamps(year_amount)
 
     # Calculate distance for each adalia day interval
     print(f"Starting calculations...")
@@ -32,14 +48,5 @@ if __name__ == '__main__':
     home_base_positions = [calc_position(home_orbital, adalia_day) for adalia_day in adalia_day_interval]
 
     # Process
-    for i, row in asteroids_df.iterrows():
-        print(f"Calculating results for asteroid {row['i']}")
-        row_orbital = row['orbital']
-        distances = []
-        for i, adalia_day in enumerate(adalia_day_interval):
-            x1 = home_base_positions[i]
-            x2 = calc_position(row_orbital, adalia_day)
-            distances.append(euclidian(x1, x2))
-        f.write('\n')
-        f.write(f"{row['i']}, {np.average(distances)}, {np.max(distances)}, {np.min(distances)}")
+    process_dataframe(asteroids_df, selection, adalia_day_interval, home_base_positions)
     print(f"Processing finished!")
